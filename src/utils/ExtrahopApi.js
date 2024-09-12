@@ -1,35 +1,29 @@
+import { CONTENT_TYPE_JSON, CONTENT_TYPE_FORM_DATA } from '@/data/constants';
+
 class ExtrahopApi {
   constructor(baseUrl, apiKey, apiPrefix) {
     this.baseUrl = baseUrl;
     this.apiKey = apiKey;
     this.apiPrefix = apiPrefix || '/api/v1';
+    this.headers = { 'Authorization': `ExtraHop apikey=${apiKey}` };
   }
 
   async request(endpoint, method = 'GET', data = null) {
+    const isFormData = (data instanceof FormData);
+    const contentType = isFormData ? CONTENT_TYPE_JSON : CONTENT_TYPE_FORM_DATA;
+
     const url = `${this.baseUrl}${this.apiPrefix}${endpoint}`;
-    const headers = {
-      'Authorization': `ExtraHop apikey=${this.apiKey}`,
-    };
+    const headers = { ...this.headers, 'Content-Type': contentType };
+    const body = isFormData ? data : (data ? JSON.stringify(data) : null);
 
-    if (!(data instanceof FormData)) {
-      headers['Content-Type'] = 'application/json';
-    }
-
-    const options = {
-      method,
-      headers,
-      body: data instanceof FormData ? data : (data ? JSON.stringify(data) : null),
-    };
-
-    const response = await fetch(url, options);
+    const response = await fetch(url, { method, headers, body});
     
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
     }
 
-    const contentType = response.headers.get('content-type');
-    if (contentType && contentType.includes('application/json')) {
+    if ((response.headers.get('content-type') || '').includes('application/json')) {
       try {
         return await response.json();
       } catch (error) {
