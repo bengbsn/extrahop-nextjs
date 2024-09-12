@@ -1,0 +1,42 @@
+// src/app/{{name}}/page.tsx
+
+import Image from "next/image";
+import Link from 'next/link';
+
+// Fetch data from the /api/{{dashCase name}}s route in the server component
+async function getData() {
+  const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/{{dashCase name}}s`);
+  if (!res.ok) {
+    throw new Error('Failed to fetch data');
+  }
+  return res.json();
+}
+
+export default async function {{pascalCase name}}Page() {
+  // Fetch data on the server
+  const {{pascalCase name}}s = await getData();
+
+  return (
+    <div className="grid items-center justify-items-center min-h-screen p-8 sm:p-20 font-[family-name:var(--default-sans)]">
+      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
+        <Image
+          className="dark:invert"
+          src="https://nextjs.org/icons/next.svg"
+          alt="Next.js logo"
+          width={180}
+          height={38}
+          priority
+        />
+        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--default-mono)]">
+          {{name}}s.map(({{name}}) => (
+            <li className="mb-2">
+              <Link className="rounded-md text-sm font-medium" href="#">
+                {{ "{" + name }}.name}
+              </Link>
+            </li>
+          ))}
+        </ol>
+      </main>
+    </div>
+  );
+}

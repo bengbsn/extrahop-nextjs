@@ -1,0 +1,265 @@
+'use client';
+
+import React, { useEffect, useState } from 'react';
+import { Table, Tag, Spin, Pagination, Tooltip } from 'antd';
+import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
+import Link from 'next/link';
+
+async function getDevices() {
+  const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/devices`, { cache: 'no-store' });
+  if (!res.ok) {
+    throw new Error('Failed to fetch devices');
+  }
+  return res.json();
+}
+
+interface Device {
+  id: string;
+  display_name?: string;
+  status?: 'online' | 'offline' | 'maintenance';
+  last_seen_time?: number;
+  ipaddr4?: string;
+  mac_address?: string;
+  firmware_version?: string;
+  hardware_model?: string;
+  serial_number?: string;
+  description?: string;
+  location?: string;
+  last_maintenance?: number;
+  [key: string]: any; // This allows for custom attributes
+}
+
+const DevicesPage: React.FC = () => {
+  const [devices, setDevices] = useState<Device[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [pagination, setPagination] = useState<TablePaginationConfig>({
+    current: 1,
+    pageSize: 20,
+    showSizeChanger: true,
+    showQuickJumper: true,
+    pageSizeOptions: ['20', '40', '60', '80', '100'],
+  });
+  const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    getDevices()
+      .then((data) => {
+        setDevices(data);
+        setLoading(false);
+      })
+      .catch((error) => {
+        console.error('Failed to fetch devices:', error);
+        setLoading(false);
+      });
+  }, []);
+
+  const handleTableChange = (newPagination: TablePaginationConfig, filters: any, sorter: any) => {
+    setPagination(newPagination);
+  };
+
+  const paginatedDevices = devices.slice(
+    (pagination.current! - 1) * pagination.pageSize!,
+    pagination.current! * pagination.pageSize!
+  );
+
+  const onRowClick = (record: Device) => {
+    setIsLoading(true);
+    
+    // Artificial delay
+    setTimeout(() => {
+      setSelectedDevice(record);
+      setIsLoading(false);
+    }, 300); // 300ms delay
+  };
+
+  const columns: ColumnsType<Device> = [
+    {
+      title: <span className="text-sm font-medium">Device Name</span>,
+      dataIndex: 'display_name',
+      key: 'display_name',
+      width: '25%',
+      render: (text: string | undefined, record: Device) => (
+        <Tooltip title={text || 'Unnamed Device'}>
+          <Link 
+            href={`/devices/${record.id}`} 
+            className="text-blue-600 hover:text-blue-800 block truncate"
+          >
+            {text || 'Unnamed Device'}
+          </Link>
+        </Tooltip>
+      ),
+      ellipsis: {
+        showTitle: false,
+      },
+    },
+    {
+      title: <span className="text-sm font-medium">IP Address</span>,
+      dataIndex: 'ipaddr4',
+      key: 'ipaddr4',
+      width: '25%',
+      render: (ip: string | undefined) => <span className="text-sm">{ip || 'N/A'}</span>,
+      sorter: (a, b) => {
+        if (!a.ipaddr4 || !b.ipaddr4) return 0;
+        const aOctets = a.ipaddr4.split('.').map(Number);
+        const bOctets = b.ipaddr4.split('.').map(Number);
+        for (let i = 0; i < 4; i++) {
+          if (aOctets[i] !== bOctets[i]) {
+            return aOctets[i] - bOctets[i];
+          }
+        }
+        return 0;
+      },
+    },
+    {
+      title: <span className="text-sm font-medium">Status</span>,
+      dataIndex: 'status',
+      key: 'status',
+      width: '25%',
+      render: (status: Device['status']) => {
+        if (!status) return <Tag className="bg-gray-100 text-gray-800 text-xs font-medium px-2 py-0.5 rounded">UNKNOWN</Tag>;
+        const colorClass = status === 'online' ? 'bg-green-100 text-green-800' : 
+                           status === 'offline' ? 'bg-red-100 text-red-800' : 
+                           'bg-yellow-100 text-yellow-800';
+        return <Tag className={`${colorClass} text-xs px-2 py-0.5 rounded`}>{status.toUpperCase()}</Tag>;
+      },
+      filters: [
+        { text: 'Online', value: 'online' },
+        { text: 'Offline', value: 'offline' },
+        { text: 'Maintenance', value: 'maintenance' },
+      ],
+      onFilter: (value, record) => record.status === value,
+    },
+    {
+      title: <span className="text-sm font-medium">Last Seen Time</span>,
+      dataIndex: 'last_seen_time',
+      key: 'last_seen_time',
+      width: '25%',
+      render: (time: number | undefined) => time ? new Date(time).toLocaleString() : 'Never',
+      sorter: (a, b) => (a.last_seen_time || 0) - (b.last_seen_time || 0),
+    },
+  ];
+
+  return (
+    <div className="min-h-screen">
+      <h1 className="text-xl font-bold mb-4 text-gray-800">Devices</h1>
+      {loading ? (
+        <div className="flex justify-center items-center h-64">
+          <Spin size="large" />
+        </div>
+      ) : devices.length > 0 ? (
+        <div className="flex bg-white rounded-lg shadow overflow-hidden">
+          <div className={`flex-grow transition-all duration-300 ease-in-out ${selectedDevice ? 'w-3/4' : 'w-full'}`}>
+            <Table
+              columns={columns}
+              dataSource={paginatedDevices}
+              rowKey="id"
+              pagination={false}
+              onChange={handleTableChange}
+              scroll={{ x: 650 }}
+              sticky
+              loading={loading}
+              className="w-full"
+              rowClassName={(record) => 
+                `hover:bg-gray-50 transition-colors duration-150 ease-in-out ${
+                  record.id === selectedDevice?.id ? 'bg-blue-50' : ''
+                }`
+              }
+              onRow={(record) => ({
+                onClick: () => onRowClick(record),
+              })}
+              size="small"
+            />
+            <div className="flex justify-center py-3">
+              <Pagination
+                {...pagination}
+                total={devices.length}
+                onChange={(page, pageSize) => setPagination({ ...pagination, current: page, pageSize })}
+                showTotal={(total, range) => `${range[0]}-${range[1]} of ${total} items`}
+              />
+            </div>
+          </div>
+          {selectedDevice && (
+            <div className="w-1/4 border-l border-gray-200 transition-all duration-300 ease-in-out">
+              <div className="h-full bg-gray-50 p-1">
+                <div className="bg-white h-full shadow-inner overflow-auto relative">
+                  {isLoading ? (
+                    <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-80">
+                      <Spin size="large" />
+                    </div>
+                  ) : null}
+                  <ExpandedPanel device={selectedDevice} />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <p className="text-gray-600">No devices found.</p>
+      )}
+    </div>
+  );
+};
+
+const ExpandedPanel: React.FC<{ device: Device }> = ({ device }) => {
+  const customAttributes = Object.entries(device)
+    .filter(([key]) => key.startsWith('custom_'))
+    .sort(([a], [b]) => a.localeCompare(b));
+
+  return (
+    <div className="p-4 bg-gray-50 h-full overflow-auto">
+      <h3 className="text-lg font-semibold mb-4">{device.display_name || 'Unnamed Device'}</h3>
+      <div className="space-y-3">
+        <InfoItem label="Device ID" value={device.id} />
+        <InfoItem
+          label="Status"
+          value={
+            <Tag className={`${device.status === 'online' ? 'bg-green-100 text-green-800' : 
+                              device.status === 'offline' ? 'bg-red-100 text-red-800' : 
+                              'bg-yellow-100 text-yellow-800'} text-xs px-1 py-0.5 rounded`}>
+              {device.status?.toUpperCase() || 'UNKNOWN'}
+            </Tag>
+          }
+        />
+        <InfoItem
+          label="Last Seen"
+          value={device.last_seen_time ? new Date(device.last_seen_time).toLocaleString() : 'Never'}
+        />
+        <InfoItem label="IP Address" value={device.ipaddr4 || 'N/A'} />
+        <InfoItem label="Firmware" value={device.firmware_version || 'Unknown'} />
+        <InfoItem label="Model" value={device.hardware_model || 'Unknown'} />
+        <InfoItem label="Location" value={device.location || 'Unknown'} />
+        {customAttributes.length > 0 && (
+          <>
+            <div className="border-t border-gray-200 my-3"></div>
+            <h4 className="text-md font-semibold mb-2">Custom Attributes</h4>
+            {customAttributes.map(([key, value]) => (
+              <InfoItem 
+                key={key} 
+                label={key.replace('custom_', '').replace(/_/g, ' ')} 
+                value={value || '--'} 
+              />
+            ))}
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const InfoItem: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value }) => (
+  <div>
+    <span className="text-xs font-medium text-gray-500">{label}</span>
+    <div className="text-sm text-gray-900 break-words">
+      {typeof value === 'string' && value.length > 30 ? (
+        <Tooltip title={value} placement="topLeft">
+          <span>{value.substring(0, 30)}...</span>
+        </Tooltip>
+      ) : (
+        value
+      )}
+    </div>
+  </div>
+);
+
+export default DevicesPage;
